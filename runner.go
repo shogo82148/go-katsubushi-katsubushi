@@ -41,10 +41,34 @@ func (r *Runner) Run() error {
 		return err
 	}
 
-	cmd, err := r.startCommand(idInfo.Id)
+	args := make([]string, len(r.cmd)-1)
+	for i, arg := range r.cmd[1:] {
+		if arg == r.replacement {
+			args[i] = strconv.Itoa(idInfo.Id)
+		} else {
+			args[i] = arg
+		}
+	}
+
+	cmd := exec.Command(r.cmd[0], args...)
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
+	defer stdin.Close()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	go io.Copy(stdin, os.Stdin)
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+
+	cmd.Start()
 	cmdCh := make(chan error)
 	go func() {
 		cmdCh <- cmd.Wait()
@@ -89,36 +113,4 @@ func (r *Runner) Run() error {
 	}
 
 	return nil
-}
-
-func (r *Runner) startCommand(id int) (*exec.Cmd, error) {
-	args := make([]string, len(r.cmd)-1)
-	for i, arg := range r.cmd[1:] {
-		if arg == r.replacement {
-			args[i] = strconv.Itoa(id)
-		} else {
-			args[i] = arg
-		}
-	}
-
-	cmd := exec.Command(r.cmd[0], args...)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	defer stdin.Close()
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-	go io.Copy(stdin, os.Stdin)
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
-
-	cmd.Start()
-	return cmd, nil
 }
