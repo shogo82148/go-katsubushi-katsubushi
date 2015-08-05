@@ -36,10 +36,29 @@ func NewRunner(generator IdGenerator, replacement string, cmd []string) *Runner 
 }
 
 func (r *Runner) Run() error {
+	err := r.run()
+	if err != nil {
+		logrus.Error(err)
+	}
+	return err
+}
+
+func (r *Runner) run() error {
 	idInfo, err := r.generator.New()
 	if err != nil {
 		return err
 	}
+	logrus.WithFields(logrus.Fields{
+		"id":          idInfo.Id,
+		"released_at": idInfo.ReleasedAt,
+		"expire_at":   idInfo.ExpireAt,
+	}).Info("post")
+	defer func() {
+		if time.Now().Before(idInfo.ExpireAt) {
+			r.generator.Delete(idInfo.Id)
+			logrus.WithField("id", idInfo.Id).Info("delete")
+		}
+	}()
 
 	args := make([]string, len(r.cmd)-1)
 	for i, arg := range r.cmd[1:] {
@@ -103,10 +122,6 @@ func (r *Runner) Run() error {
 			cmd.Process.Signal(s) // forward to child
 			logrus.WithField("signal", s).Info("signal")
 		case cmdErr := <-cmdCh:
-			if time.Now().Before(idInfo.ExpireAt) {
-				r.generator.Delete(idInfo.Id)
-				logrus.WithField("id", idInfo.Id).Info("delete")
-			}
 			logrus.WithField("status", cmdErr).Info("exit")
 			return cmdErr
 		}
