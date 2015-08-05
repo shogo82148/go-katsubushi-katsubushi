@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	katsubushi "github.com/shogo82148/go-katsubushi-katshubushi"
+	"gopkg.in/Sirupsen/logrus.v0"
 )
 
 type Server struct {
@@ -32,6 +34,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		encoder := json.NewEncoder(w)
 		encoder.Encode(info)
+		logrus.WithFields(logrus.Fields{
+			"id":          info.Id,
+			"released_at": info.ReleasedAt,
+			"expire_at":   info.ExpireAt,
+		}).Info("put")
 	case "PUT":
 		// extend expire time of id
 		path := strings.Split(r.URL.Path, "/")
@@ -49,6 +56,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		encoder := json.NewEncoder(w)
 		encoder.Encode(info)
+		logrus.WithFields(logrus.Fields{
+			"id":          info.Id,
+			"released_at": info.ReleasedAt,
+			"expire_at":   info.ExpireAt,
+		}).Info("put")
 	case "DELETE":
 		// delete id
 		path := strings.Split(r.URL.Path, "/")
@@ -59,6 +71,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.s.Delete(id)
 		fmt.Fprintf(w, `{"deleted":true}`)
+		logrus.WithFields(logrus.Fields{
+			"id": id,
+		}).Info("delete")
 	}
 }
 
@@ -69,12 +84,27 @@ func (s *Server) renderError(err error, w http.ResponseWriter) {
 	}{
 		Error: err.Error(),
 	})
-	log.Printf("error: %s", err)
+	logrus.Error(err)
 }
 
 func main() {
+	var host string
+	var port int
+	var expire time.Duration
+	flag.StringVar(&host, "host", "", "bind hostname")
+	flag.IntVar(&port, "port", 8080, "bind port")
+	flag.DurationVar(&expire, "expire", 24*time.Hour, "expire time")
 	flag.Parse()
 
-	http.Handle("/", NewServer(katsubushi.NewMemoryServer()))
-	http.ListenAndServe(":8080", nil)
+	server := katsubushi.NewMemoryServer()
+	server.ExpireDuration = expire
+	http.Handle("/", NewServer(server))
+
+	logrus.WithFields(logrus.Fields{
+		"host":   host,
+		"port":   port,
+		"expire": expire,
+	}).Info("start")
+
+	http.ListenAndServe(net.JoinHostPort(host, strconv.Itoa(port)), nil)
 }

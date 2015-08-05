@@ -2,14 +2,14 @@ package katsubushi
 
 import (
 	"io"
-	"log"
-	"time"
-
 	"os"
 	"os/exec"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
+
+	"gopkg.in/Sirupsen/logrus.v0"
 )
 
 type Runner struct {
@@ -59,24 +59,31 @@ func (r *Runner) Run() error {
 			// extend expire time
 			if newIdInfo, err := r.generator.Update(idInfo.Id); err == nil {
 				idInfo = newIdInfo
-				log.Print("extend expire time to %s", idInfo.ExpireAt)
+				logrus.WithFields(logrus.Fields{
+					"id":          idInfo.Id,
+					"released_at": idInfo.ReleasedAt,
+					"expire_at":   idInfo.ExpireAt,
+				}).Info("put")
 			} else {
-				log.Print(err)
+				logrus.Error(err)
 			}
 
 			now := time.Now()
 			if idInfo.ExpireAt.Before(now.Add(r.Interval)) {
 				// id is expired. terminate child process...
-				log.Print("expired")
+				logrus.WithField("id", idInfo.Id).Info("expired")
 				cmd.Process.Signal(syscall.SIGTERM)
 				idInfo.ExpireAt = now.Add(-1 * time.Nanosecond)
 			}
 		case s := <-signalCh:
 			cmd.Process.Signal(s) // forward to child
+			logrus.WithField("signal", s).Info("signal")
 		case cmdErr := <-cmdCh:
 			if time.Now().Before(idInfo.ExpireAt) {
 				r.generator.Delete(idInfo.Id)
+				logrus.WithField("id", idInfo.Id).Info("delete")
 			}
+			logrus.WithField("status", cmdErr).Info("exit")
 			return cmdErr
 		}
 	}
