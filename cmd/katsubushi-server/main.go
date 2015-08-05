@@ -13,10 +13,10 @@ import (
 )
 
 type Server struct {
-	s katsubushi.Server
+	s katsubushi.IdGenerator
 }
 
-func NewServer(s katsubushi.Server) *Server {
+func NewServer(s katsubushi.IdGenerator) *Server {
 	return &Server{s}
 }
 

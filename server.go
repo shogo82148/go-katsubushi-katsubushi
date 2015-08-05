@@ -15,7 +15,7 @@ type IdInfo struct {
 	ExpireAt   time.Time `json:"expire_at"`
 }
 
-type Server interface {
+type IdGenerator interface {
 	// New creates new worker-id
 	New() (*IdInfo, error)
 
